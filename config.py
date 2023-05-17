@@ -1,15 +1,15 @@
 # Your OpenAI API key
-OPENAI_API_KEY="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"
+OPENAI_API_KEY="sk-NorD2B2keYPRblVz8vrIXXXXXXXXXXXXXkaQi4CCWm"
 
 # Your Telegram bot token obtained using @BotFather
-TELEGRAM_BOT_TOKEN="5780806208:AAFoxkBHKIK5s0BrXn-WShUYrGISCpTBmdQ"
+TELEGRAM_BOT_TOKEN="5780806208:AAFoxkBHKIK5s0BrXXXXXXXXXXXTBmdQ"
 
 #The mandatory Channel Id the user should join first. Note: Make sure to add the bot to the channel
-MANDATORY_CHANNEL_ID="-1001927394492"
-MANDATORY_CHANNEL_LINK="https://t.me/+mKlwJn7E_fhlYjk1"
+MANDATORY_CHANNEL_ID="-1001927XXX492"
+MANDATORY_CHANNEL_LINK="https://t.me/+mKXXXXX_fhlYjk1"
 
 # Telegram user ID of admins, or leave the list blank
-ADMIN_USER_IDS=["5350461770"]
+ADMIN_USER_IDS=["5350XX1770"]
 
 pytesseract_path = r'C:\Users\mrift\Tesseract\tesseract.exe'
 #
