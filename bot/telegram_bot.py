@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-
+import pytesseract
+from PIL import Image
+import requests
+from config import pytesseract_path
 from uuid import uuid4
 from telegram import BotCommandScopeAllGroupChats, Update, constants
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton, InlineQueryResultArticle
@@ -20,6 +23,8 @@ from utils import is_group_chat, get_thread_id, message_text, wrap_with_indicato
 from openai_helper import OpenAIHelper, localized_text
 from usage_tracker import UsageTracker
 
+
+pytesseract.pytesseract.tesseract_cmd = pytesseract_path
 
 class ChatGPTTelegramBot:
     """
@@ -216,9 +221,7 @@ class ChatGPTTelegramBot:
                 # add image request to users usage tracker
                 user_id = update.message.from_user.id
                 self.usage[user_id].add_image_request(image_size, self.config['image_prices'])
-                # add guest chat request to guest usage tracker
-                if str(user_id) not in self.config['allowed_user_ids'].split(',') and 'guests' in self.usage:
-                    self.usage["guests"].add_image_request(image_size, self.config['image_prices'])
+
 
             except Exception as e:
                 logging.exception(e)
@@ -291,9 +294,6 @@ class ChatGPTTelegramBot:
                 transcription_price = self.config['transcription_price']
                 self.usage[user_id].add_transcription_seconds(audio_track.duration_seconds, transcription_price)
 
-                allowed_user_ids = self.config['allowed_user_ids'].split(',')
-                if str(user_id) not in allowed_user_ids and 'guests' in self.usage:
-                    self.usage["guests"].add_transcription_seconds(audio_track.duration_seconds, transcription_price)
 
                 # check if transcript starts with any of the prefixes
                 response_to_transcription = any(transcript.lower().startswith(prefix.lower()) if prefix else False
@@ -317,8 +317,7 @@ class ChatGPTTelegramBot:
                     response, total_tokens = await self.openai.get_chat_response(chat_id=chat_id, query=transcript)
 
                     self.usage[user_id].add_chat_tokens(total_tokens, self.config['token_price'])
-                    if str(user_id) not in allowed_user_ids and 'guests' in self.usage:
-                        self.usage["guests"].add_chat_tokens(total_tokens, self.config['token_price'])
+
 
                     # Split into chunks of 4096 characters (Telegram's message limit)
                     transcript_output = (
@@ -365,7 +364,24 @@ class ChatGPTTelegramBot:
             f'New message received from user {update.message.from_user.name} (id: {update.message.from_user.id})')
         chat_id = update.effective_chat.id
         user_id = update.message.from_user.id
-        prompt = message_text(update.message)
+        #check if its a photo
+        if update.message.photo:
+            #get the text from the photo using pytesseract and use it as the prompt
+            # get the text from the photo using pytesseract and use it as the prompt
+            photo = update.message.photo[-1]
+            file = await photo.get_file()
+            file_path = f'{user_id}photo.jpg'
+
+            # Download the image
+            response = requests.get(file.file_path)
+            with open(file_path, 'wb') as f:
+                f.write(response.content)
+
+            prompt = pytesseract.image_to_string(Image.open(file_path))
+            os.remove(file_path)
+        else:
+            prompt = message_text(update.message)
+        print("prompt",prompt)
         self.last_message[chat_id] = prompt
 
         if is_group_chat(update):
@@ -507,6 +523,7 @@ class ChatGPTTelegramBot:
                 text=f"{localized_text('chat_fail', self.config['bot_language'])} {str(e)}",
                 parse_mode=constants.ParseMode.MARKDOWN
             )
+
 
     async def inline_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
@@ -754,7 +771,8 @@ class ChatGPTTelegramBot:
             filters.AUDIO | filters.VOICE | filters.Document.AUDIO |
             filters.VIDEO | filters.VIDEO_NOTE | filters.Document.VIDEO,
             self.transcribe))
-        application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.prompt))
+        # application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.prompt)) #with images
+        application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND) | filters.PHOTO, self.prompt))
         application.add_handler(InlineQueryHandler(self.inline_query, chat_types=[
             constants.ChatType.GROUP, constants.ChatType.SUPERGROUP, constants.ChatType.PRIVATE
         ]))

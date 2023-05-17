@@ -147,31 +147,24 @@ async def error_handler(_: object, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def is_allowed(config, update: Update, context: CallbackContext, is_inline=False) -> bool:
     """
-    Checks if the user is allowed to use the bot.
+    Checks if the user has joined the MANDATORY_CHANNEL_ID channel. If not, send a message to the user.
     """
-    if config['allowed_user_ids'] == '*':
+    if config['mandatory_channel_id'] == '-':
         return True
 
-    user_id = update.inline_query.from_user.id if is_inline else update.message.from_user.id
-    if is_admin(config, user_id):
-        return True
-    name = update.inline_query.from_user.name if is_inline else update.message.from_user.name
-    allowed_user_ids = config['allowed_user_ids'].split(',')
-    # Check if user is allowed
-    if str(user_id) in allowed_user_ids:
-        return True
-    # Check if it's a group a chat with at least one authorized member
-    if not is_inline and is_group_chat(update):
-        admin_user_ids = config['admin_user_ids'].split(',')
-        for user in itertools.chain(allowed_user_ids, admin_user_ids):
-            if not user.strip():
-                continue
-            if await is_user_in_group(update, context, user):
-                logging.info(f'{user} is a member. Allowing group chat message...')
-                return True
-        logging.info(f'Group chat messages from user {name} '
-                     f'(id: {user_id}) are not allowed')
-    return False
+    try:
+        member = await context.bot.get_chat_member(chat_id=config['mandatory_channel_id'], user_id=update.effective_user.id)
+        if member.status in [ChatMember.OWNER, ChatMember.ADMINISTRATOR, ChatMember.MEMBER]:
+            return True
+        else:
+            if not is_inline:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"You need to join our channel first. Our Channel Link: {config['mandatory_channel_link']}")
+            return False
+    except Exception as e:
+        print(e)
+        if not is_inline:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"An error occurred")
+        return False
 
 def is_admin(config, user_id: int, log_no_admin=False) -> bool:
     """
